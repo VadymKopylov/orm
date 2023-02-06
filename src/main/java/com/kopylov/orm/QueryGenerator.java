@@ -12,6 +12,6 @@ public interface QueryGenerator {
 
     String insert(Object object) throws IllegalAccessException;
 
-    String update(Object object) throws IllegalAccessException, NoSuchFieldException;
+    String update(Object object) throws IllegalAccessException;
 
 }

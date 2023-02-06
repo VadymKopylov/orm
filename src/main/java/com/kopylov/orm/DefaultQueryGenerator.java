@@ -30,8 +30,9 @@ public class DefaultQueryGenerator implements QueryGenerator {
         query.append(columnNames);
         query.append(" FROM ");
         query.append(tableName);
-        query.append(" WITH id: ");
+        query.append(" WHERE id=");
         query.append(id);
+        query.append(";");
         return query.toString();
     }
 
@@ -42,9 +43,9 @@ public class DefaultQueryGenerator implements QueryGenerator {
         StringBuilder query = new StringBuilder("DELETE ");
         query.append("FROM ");
         query.append(tableName);
-        query.append(" WITH id: ");
+        query.append(" WHERE id=");
         query.append(id);
-
+        query.append(";");
         return query.toString();
     }
 
@@ -52,14 +53,16 @@ public class DefaultQueryGenerator implements QueryGenerator {
     public String insert(Object object) throws IllegalAccessException {
         Table tableAnnotation = getAnnotationTable(object.getClass());
         String tableName = getTableName(object.getClass(), tableAnnotation);
-        StringBuilder query = new StringBuilder("INSERT ");
+        StringBuilder query = new StringBuilder("INSERT INTO ");
         StringJoiner columnNames = getAllFields(object.getClass());
         String values = getValuesFromObject(object);
-        query.append(columnNames);
-        query.append(" TO ");
         query.append(tableName);
-        query.append(" WITH values ");
+        query.append(" (");
+        query.append(columnNames);
+        query.append(")");
+        query.append(" VALUES ");
         query.append(values);
+        query.append(";");
         return query.toString();
     }
 
@@ -68,14 +71,29 @@ public class DefaultQueryGenerator implements QueryGenerator {
         Table tableAnnotation = getAnnotationTable(object.getClass());
         String tableName = getTableName(object.getClass(), tableAnnotation);
         StringBuilder query = new StringBuilder("UPDATE ");
-        StringJoiner columnNames = getAllFieldsWithoutId(object.getClass());
-        int id = getIdFromObject(object);
-        query.append(columnNames);
-        query.append(" TO ");
         query.append(tableName);
-        query.append(" WITH id ");
-        query.append(id);
+        query.append(" SET ");
+        query.append(getColumnNameAndFieldFromObject(object));
+        query.append(" WHERE id=");
+        query.append(getIdFromObject(object));
+        query.append(";");
         return query.toString();
+    }
+
+    private StringJoiner getColumnNameAndFieldFromObject(Object object) throws IllegalAccessException {
+        Class<?> personClass = object.getClass();
+        StringJoiner stringJoiner = new StringJoiner(", ");
+        for (Field declaredField : personClass.getDeclaredFields()) {
+            Column columnAnnotation = declaredField.getAnnotation(Column.class);
+            if (columnAnnotation != null) {
+                if (!columnAnnotation.name().isEmpty()) {
+                    declaredField.setAccessible(true);
+                    String columnName = columnAnnotation.name() + "=" + declaredField.get(object).toString();
+                    stringJoiner.add(columnName);
+                }
+            }
+        }
+        return stringJoiner;
     }
 
     private Table getAnnotationTable(Class<?> personClass) {
@@ -108,8 +126,7 @@ public class DefaultQueryGenerator implements QueryGenerator {
             Column columnAnnotation = declaredField.getAnnotation(Column.class);
             if (columnAnnotation != null) {
                 if (!columnAnnotation.name().isEmpty()) {
-                    String columnName = columnAnnotation.name();
-                    columnNames.add(columnName);
+                    columnNames.add(columnAnnotation.name());
                 }
             }
         }
@@ -133,13 +150,12 @@ public class DefaultQueryGenerator implements QueryGenerator {
 
     private String getValuesFromObject(Object object) throws IllegalAccessException {
         Class<?> personClass = object.getClass();
-        StringJoiner columnNames = new StringJoiner(", ");
+        StringJoiner columnNames = new StringJoiner(", ", "(", ")");
         for (Field declaredField : personClass.getDeclaredFields()) {
             Column columnAnnotation = declaredField.getAnnotation(Column.class);
             if (columnAnnotation != null) {
                 declaredField.setAccessible(true);
-                Object value = declaredField.get(object);
-                columnNames.add(value.toString());
+                columnNames.add("'" + declaredField.get(object).toString() + "'");
             }
         }
         return columnNames.toString();

@@ -19,16 +19,4 @@ public class Person {
         this.name = name;
         this.salary = salary;
     }
-
-    public int getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public double getSalary() {
-        return salary;
-    }
 }
