@@ -3,7 +3,6 @@ package com.kopylov.orm;
 import com.kopylov.orm.annotation.Column;
 import com.kopylov.orm.annotation.Table;
 
-import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.StringJoiner;
 
@@ -22,7 +21,7 @@ public class DefaultQueryGenerator implements QueryGenerator {
     }
 
     @Override
-    public String findById(Class<?> personClass, Serializable id) {
+    public String findById(Class<?> personClass, Object id) {
         Table tableAnnotation = getAnnotationTable(personClass);
         String tableName = getTableName(personClass, tableAnnotation);
         StringBuilder query = new StringBuilder("SELECT ");
@@ -31,20 +30,20 @@ public class DefaultQueryGenerator implements QueryGenerator {
         query.append(" FROM ");
         query.append(tableName);
         query.append(" WHERE id=");
-        query.append(id);
+        query.append(wrapId(id));
         query.append(";");
         return query.toString();
     }
 
     @Override
-    public String deleteById(Class<?> personClass, Serializable id) {
+    public String deleteById(Class<?> personClass, Object id) {
         Table tableAnnotation = getAnnotationTable(personClass);
         String tableName = getTableName(personClass, tableAnnotation);
         StringBuilder query = new StringBuilder("DELETE ");
         query.append("FROM ");
         query.append(tableName);
         query.append(" WHERE id=");
-        query.append(id);
+        query.append(wrapId(id));
         query.append(";");
         return query.toString();
     }
@@ -88,8 +87,11 @@ public class DefaultQueryGenerator implements QueryGenerator {
             if (columnAnnotation != null) {
                 if (!columnAnnotation.name().isEmpty()) {
                     declaredField.setAccessible(true);
-                    String columnName = columnAnnotation.name() + "=" + declaredField.get(object).toString();
-                    stringJoiner.add(columnName);
+                    if (columnAnnotation.name().contains("person_name")) {
+                        stringJoiner.add(columnAnnotation.name() + "=" + "'" + declaredField.get(object).toString() + "'");
+                    } else {
+                        stringJoiner.add(columnAnnotation.name() + "=" + declaredField.get(object).toString());
+                    }
                 }
             }
         }
@@ -97,11 +99,10 @@ public class DefaultQueryGenerator implements QueryGenerator {
     }
 
     private Table getAnnotationTable(Class<?> personClass) {
-        Table tableAnnotation = personClass.getAnnotation(Table.class);
-        if (tableAnnotation == null) {
-            throw new IllegalArgumentException();
+        if (!personClass.isAnnotationPresent(Table.class)) {
+            throw new IllegalArgumentException("Class should be annotated with @Table");
         }
-        return tableAnnotation;
+        return personClass.getAnnotation(Table.class);
     }
 
     private String getTableName(Class<?> personClass, Table tableAnnotation) {
@@ -113,8 +114,7 @@ public class DefaultQueryGenerator implements QueryGenerator {
         for (Field declaredField : personClass.getDeclaredFields()) {
             Column columnAnnotation = declaredField.getAnnotation(Column.class);
             if (columnAnnotation != null) {
-                String columnName = columnAnnotation.name().isEmpty() ? declaredField.getName() : columnAnnotation.name();
-                columnNames.add(columnName);
+                columnNames.add(columnAnnotation.name().isEmpty() ? declaredField.getName() : columnAnnotation.name());
             }
         }
         return columnNames;
@@ -133,19 +133,18 @@ public class DefaultQueryGenerator implements QueryGenerator {
         return columnNames;
     }
 
-    private int getIdFromObject(Object object) throws IllegalAccessException {
-        int id = 0;
+    private String getIdFromObject(Object object) throws IllegalAccessException {
         Class<?> personClass = object.getClass();
         for (Field declaredField : personClass.getDeclaredFields()) {
             Column columnAnnotation = declaredField.getAnnotation(Column.class);
             if (columnAnnotation != null) {
                 if (columnAnnotation.name().isEmpty()) {
                     declaredField.setAccessible(true);
-                    id = declaredField.getInt(object);
+                    return declaredField.get(object).toString();
                 }
             }
         }
-        return id;
+        return null;
     }
 
     private String getValuesFromObject(Object object) throws IllegalAccessException {
@@ -155,9 +154,22 @@ public class DefaultQueryGenerator implements QueryGenerator {
             Column columnAnnotation = declaredField.getAnnotation(Column.class);
             if (columnAnnotation != null) {
                 declaredField.setAccessible(true);
-                columnNames.add("'" + declaredField.get(object).toString() + "'");
+                if (columnAnnotation.name().contains("person_name")) {
+                    columnNames.add("'" + declaredField.get(object).toString() + "'");
+                } else {
+                    columnNames.add(declaredField.get(object).toString());
+                }
             }
         }
         return columnNames.toString();
     }
+
+    private String wrapId(Object id) {
+        if (id instanceof String) {
+            return "'" + id + "'";
+        }else{
+            return id.toString();
+        }
+    }
+
 }
